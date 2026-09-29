@@ -1,0 +1,21 @@
+{
+  "meal": "Lunch",
+  "name": "Chicken burrito bowl (Chipotle)",
+  "context": "restaurant_fast_casual",
+  "components": [
+    {"name": "White rice", "state": "cooked", "grams": 180, "confidence": "medium",
+     "per100g": {"kcal": 130, "protein": 2.7, "carbs": 28.2, "fat": 0.3}},
+    {"name": "Black beans", "state": "cooked", "grams": 90, "confidence": "medium",
+     "per100g": {"kcal": 132, "protein": 8.9, "carbs": 23.7, "fat": 0.5}},
+    {"name": "Chicken (thigh, grilled)", "state": "cooked", "grams": 120, "confidence": "medium",
+     "per100g": {"kcal": 209, "protein": 26.0, "carbs": 0, "fat": 10.9}},
+    {"name": "Fajita vegetables", "state": "cooked", "grams": 60, "confidence": "low",
+     "per100g": {"kcal": 44, "protein": 1.4, "carbs": 10.2, "fat": 0.2}},
+    {"name": "Pico de gallo", "grams": 60, "confidence": "medium",
+     "per100g": {"kcal": 36, "protein": 1.5, "carbs": 7.0, "fat": 0.2}},
+    {"name": "Shredded cheddar", "grams": 30, "confidence": "medium",
+     "per100g": {"kcal": 403, "protein": 24.9, "carbs": 1.3, "fat": 33.1}},
+    {"name": "Guacamole", "grams": 60, "confidence": "medium",
+     "per100g": {"kcal": 155, "protein": 2.0, "carbs": 8.6, "fat": 13.5}}
+  ]
+}
