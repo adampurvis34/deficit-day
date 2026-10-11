@@ -1,0 +1,938 @@
+<title>Hockey Card Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one column ledger. Summary + value chart up top, a binder-style grid of sleeved cards below, dialogs for scanning and card detail. */
+:root {
+  --ice: #F2F5F9;        /* page: rink ice, cool white */
+  --sheet: #FFFFFF;      /* raised surfaces */
+  --ink: #0E1A2B;        /* text */
+  --muted: #5B6A80;      /* secondary text */
+  --line: #D6DEE8;       /* hairlines, sleeve edges */
+  --blue: #1C4FC4;       /* blue line: primary accent */
+  --blue-soft: #E3EBFB;
+  --red: #C8292E;        /* centre red line: rink stripe + destructive */
+  --up: #17804A;
+  --down: #B93A26;
+  --gold: #8A6A12;       /* slab label / serial ink */
+  --gold-soft: #F6EED6;
+  --shadow: 0 1px 2px rgba(14,26,43,.06), 0 6px 18px rgba(14,26,43,.06);
+
+  --f-display: "Saira Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ice: #0B111B; --sheet: #131C2A; --ink: #E7EDF5; --muted: #93A1B5; --line: #26354B;
+    --blue: #79A2FF; --blue-soft: #1A2742; --red: #FF6F6F; --up: #5BC88A; --down: #F08A73;
+    --gold: #E2C26B; --gold-soft: #2E2716; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.28);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ice: #0B111B; --sheet: #131C2A; --ink: #E7EDF5; --muted: #93A1B5; --line: #26354B;
+  --blue: #79A2FF; --blue-soft: #1A2742; --red: #FF6F6F; --up: #5BC88A; --down: #F08A73;
+  --gold: #E2C26B; --gold-soft: #2E2716; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.28);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--ice); color: var(--ink); font: 400 16px/1.5 var(--f-body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: grid; gap: 22px; }
+@media (min-width: 720px) { .wrap { padding-inline: 28px; } }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+
+/* rink stripe: blue line, centre red line, blue line */
+.rink { height: 6px; margin-inline: -16px; background:
+  linear-gradient(90deg, var(--line) 0 22%, var(--blue) 22% 25%, var(--line) 25% 48.5%, var(--red) 48.5% 51.5%, var(--line) 51.5% 75%, var(--blue) 75% 78%, var(--line) 78%); }
+@media (min-width: 720px) { .rink { margin-inline: -28px; } }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px; padding-top: 18px; }
+.brand h1 { font: 800 clamp(30px, 6vw, 44px)/0.95 var(--f-display); letter-spacing: .01em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.brand p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--sheet); border-radius: 8px; padding: 9px 14px; font-weight: 600; font-size: 15px; cursor: pointer; line-height: 1.2; }
+.btn:hover:not(:disabled) { border-color: var(--blue); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: var(--sheet); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.danger { color: var(--red); }
+.btn.danger.solid { background: var(--red); border-color: var(--red); color: var(--sheet); }
+.btn.small { padding: 6px 10px; font-size: 14px; }
+.link { background: none; border: 0; padding: 0; color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+
+/* summary */
+.summary { display: grid; gap: 18px; grid-template-columns: 1fr; background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+@media (min-width: 820px) { .summary { grid-template-columns: minmax(250px, 320px) 1fr; padding: 22px 24px; } }
+.eyebrow { font: 700 12px/1.2 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.total { font: 800 clamp(40px, 9vw, 60px)/1 var(--f-display); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.total small { font: 600 16px var(--f-body); color: var(--muted); margin-left: 6px; letter-spacing: .04em; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 18px; margin-top: 14px; }
+.stat b { display: block; font: 700 20px/1.2 var(--f-display); letter-spacing: .01em; }
+.stat span { color: var(--muted); font-size: 13px; }
+.chartbox { min-width: 0; display: grid; gap: 6px; align-content: start; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 170px; overflow: visible; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .axis text { fill: var(--muted); font: 500 11px var(--f-num); }
+.chart .ln { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .end { fill: var(--blue); stroke: var(--sheet); stroke-width: 2; }
+.chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.tip { position: absolute; top: 0; pointer-events: none; background: var(--ink); color: var(--sheet); border-radius: 6px; padding: 5px 8px; font: 500 12px/1.35 var(--f-num); white-space: nowrap; transform: translateX(-50%); }
+.chart-empty { height: 170px; display: grid; place-items: center; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 16px; font-size: 14px; }
+
+/* status bar */
+.notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: 10px; background: var(--blue-soft); font-size: 15px; }
+.notice.err { background: var(--gold-soft); }
+.notice .msg { flex: 1 1 240px; min-width: 0; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--blue); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.search { flex: 1 1 220px; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--sheet); }
+.select { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--sheet); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 5px 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--ice); }
+
+/* binder grid of sleeved cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+@media (min-width: 720px) { .grid { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 20px; } }
+.tile { display: grid; gap: 8px; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; min-width: 0; }
+.thumb { position: relative; aspect-ratio: 5 / 7; max-width: 100%; border-radius: 6px; background: var(--sheet); border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden; display: grid; place-items: center; transition: transform .15s ease; }
+.thumb::after { content: ""; position: absolute; inset: 0; border-radius: 6px; box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--sheet) 55%, transparent); pointer-events: none; }
+.tile:hover .thumb { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) { .tile:hover .thumb { transform: none; } }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb .ph { font: 800 34px var(--f-display); color: var(--line); letter-spacing: .02em; }
+.qty { position: absolute; top: 8px; right: 8px; background: var(--ink); color: var(--ice); border-radius: 999px; padding: 1px 8px; font: 600 12px var(--f-num); z-index: 1; }
+.who { font: 700 18px/1.15 var(--f-display); letter-spacing: .01em; overflow-wrap: anywhere; }
+.what { color: var(--muted); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge { font: 700 11px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.badge.rc { border-color: var(--red); color: var(--red); }
+.badge.slab { background: var(--gold-soft); border-color: transparent; color: var(--gold); }
+.badge.ser { font-family: var(--f-num); letter-spacing: 0; color: var(--gold); border-color: var(--gold); }
+.badge.set { background: var(--blue-soft); color: var(--blue); border-color: transparent; }
+.val { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.money { font: 600 15px var(--f-num); font-variant-numeric: tabular-nums; }
+.chg { font: 600 12px var(--f-num); }
+.chg.up { color: var(--up); } .chg.down { color: var(--down); } .chg.flat { color: var(--muted); }
+.unpriced { color: var(--muted); font-size: 13px; font-style: italic; }
+
+.empty { display: grid; gap: 14px; justify-items: start; padding: 26px 22px; border: 1px dashed var(--line); border-radius: 12px; background: var(--sheet); }
+.empty h2 { font: 700 26px/1.1 var(--f-display); margin: 0; text-transform: uppercase; letter-spacing: .01em; }
+.empty p { margin: 0; color: var(--muted); max-width: 62ch; }
+.empty ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 62ch; }
+.ghosts { display: flex; gap: 12px; }
+.ghosts div { width: 64px; aspect-ratio: 5/7; border: 1px dashed var(--line); border-radius: 5px; }
+
+footer.foot { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+footer.foot label { display: inline-flex; gap: 8px; align-items: center; }
+footer.foot input { width: 84px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--sheet); }
+footer.foot p { margin: 0; flex: 1 1 320px; max-width: 70ch; }
+
+/* dialogs */
+dialog { border: 0; padding: 0; border-radius: 14px; background: var(--sheet); color: var(--ink); width: min(860px, calc(100% - 24px)); max-height: calc(100% - 32px); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+dialog::backdrop { background: rgba(8,14,24,.55); }
+.dlg { display: grid; gap: 16px; padding: 18px; }
+@media (min-width: 720px) { .dlg { padding: 24px; } }
+.dlg-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.dlg-head h2 { font: 800 26px/1.05 var(--f-display); text-transform: uppercase; margin: 0; letter-spacing: .01em; overflow-wrap: anywhere; }
+.dlg-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.x { border: 0; background: transparent; font-size: 26px; line-height: 1; cursor: pointer; color: var(--muted); padding: 2px 6px; }
+.photos { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.photos img { height: 96px; width: auto; border-radius: 5px; border: 1px solid var(--line); flex: none; }
+.items { display: grid; gap: 12px; }
+.item { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.item.off { opacity: .5; }
+.item > img, .item > .noimg { width: 64px; aspect-ratio: 5/7; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 10px; min-width: 0; }
+.fields .wide { grid-column: span 2; }
+@media (max-width: 420px) { .fields .wide { grid-column: auto; } }
+.f { display: grid; gap: 2px; min-width: 0; }
+.f span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.f input, .f select, .f textarea { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--ice); }
+.f.check { display: flex; align-items: center; gap: 8px; align-self: end; padding-bottom: 6px; }
+.f.check input { width: auto; flex: none; padding: 0; }
+.f.check span { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); font-weight: 600; }
+.item-note { grid-column: 1 / -1; color: var(--muted); font-size: 13px; margin: 0; }
+.conf { font-weight: 700; }
+.conf.low { color: var(--down); } .conf.medium { color: var(--gold); } .conf.high { color: var(--up); }
+.dlg-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+.dlg-foot .grow { flex: 1 1 200px; color: var(--muted); font-size: 14px; min-width: 0; }
+
+.detail { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 720px) { .detail { grid-template-columns: 240px minmax(0,1fr); } }
+.detail .big { width: 100%; max-width: 280px; aspect-ratio: 5/7; object-fit: contain; background: var(--ice); border-radius: 8px; border: 1px solid var(--line); }
+.detail .noimg.big { display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.vbox { display: grid; gap: 8px; padding: 14px; border-radius: 10px; background: var(--ice); }
+.vbox .now { font: 800 38px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.vbox .range { color: var(--muted); font-size: 14px; }
+.hist { width: 100%; overflow-x: auto; }
+.hist table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.hist td, .hist th { padding: 4px 8px 4px 0; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.hist th { color: var(--muted); font-weight: 600; }
+.sect { display: grid; gap: 10px; }
+.sect h3 { font: 700 18px var(--f-display); text-transform: uppercase; letter-spacing: .02em; margin: 0; }
+.sect p { margin: 0; color: var(--muted); font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row input[type="number"] { width: 140px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--ice); }
+textarea.paste { width: 100%; min-height: 110px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--ice); resize: vertical; font-size: 14px; }
+.status { font-size: 14px; color: var(--muted); }
+.status.err { color: var(--down); }
+.confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--gold-soft); }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--ice); padding: 10px 16px; border-radius: 8px; font-weight: 600; z-index: 50; max-width: calc(100% - 32px); }
+</style>
+
+<div class="wrap">
+  <div class="rink" aria-hidden="true"></div>
+  <header class="top">
+    <div class="brand">
+      <h1>Hockey Card Vault</h1>
+      <p>Photograph your cards. Claude identifies them and keeps a running value in Canadian dollars.</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btn-add" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        Add photos
+      </button>
+      <button class="btn" id="btn-revalue" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4"/></svg>
+        Update values
+      </button>
+      <button class="btn" id="btn-export" type="button" hidden>Export CSV</button>
+    </div>
+  </header>
+
+  <section class="summary" aria-label="Collection value">
+    <div>
+      <div class="eyebrow">Collection value</div>
+      <div class="total" id="total">$0<small>CAD</small></div>
+      <div class="stats">
+        <div class="stat"><b id="s-count" class="num">0</b><span>cards</span></div>
+        <div class="stat"><b id="s-change">–</b><span id="s-change-l">change at last update</span></div>
+        <div class="stat"><b id="s-top">–</b><span>most valuable</span></div>
+        <div class="stat"><b id="s-age">–</b><span>oldest estimate</span></div>
+      </div>
+    </div>
+    <div class="chartbox">
+      <div class="eyebrow">Value over time</div>
+      <div class="chart" id="chart"><div class="chart-empty">Your collection's value will chart here once cards are added and re-valued.</div></div>
+    </div>
+  </section>
+
+  <div class="notice" id="notice" hidden role="status"></div>
+
+  <section class="controls" aria-label="Find cards">
+    <input class="search" id="q" type="search" placeholder="Search player, team, set, year…" aria-label="Search cards">
+    <select class="select" id="sort" aria-label="Sort cards">
+      <option value="value">Most valuable</option>
+      <option value="added">Recently added</option>
+      <option value="player">Player A–Z</option>
+      <option value="year">Newest season</option>
+      <option value="gain">Biggest gain</option>
+    </select>
+    <div class="chips" role="group" aria-label="Filter">
+      <button class="chip" data-f="all" aria-pressed="true" type="button">All</button>
+      <button class="chip" data-f="rc" aria-pressed="false" type="button">Rookies</button>
+      <button class="chip" data-f="graded" aria-pressed="false" type="button">Graded</button>
+      <button class="chip" data-f="numbered" aria-pressed="false" type="button">Numbered</button>
+      <button class="chip" data-f="set" aria-pressed="false" type="button">Sets &amp; lots</button>
+    </div>
+  </section>
+
+  <section id="grid" class="grid" aria-label="Your cards"></section>
+
+  <section class="empty" id="empty">
+    <div class="ghosts" aria-hidden="true"><div></div><div></div><div></div></div>
+    <h2 id="empty-h">Loading your binder…</h2>
+    <p id="empty-p">Your cards appear here as sleeved tiles with their current value.</p>
+    <ol id="empty-steps">
+      <li>Tap <b>Add photos</b> and take a picture of a card, a few cards laid flat, a slab, or a whole set.</li>
+      <li>Claude reads the player, year, set, card number, parallel and grade, and estimates a value in CAD.</li>
+      <li>Check the details, fix anything it misread, and save.</li>
+      <li>Come back and tap <b>Update values</b> whenever you want fresh estimates. Each one is added to the chart.</li>
+    </ol>
+  </section>
+
+  <footer class="foot">
+    <label for="usdcad">USD → CAD rate <input id="usdcad" type="number" step="0.01" min="0.5" max="3" value="1.37"></label>
+    <p>Values are Claude's estimates from recent sales it knows about, not live market quotes. For a card that matters, paste real sold listings into the card's page and Claude prices it from those.</p>
+  </footer>
+</div>
+
+<input type="file" id="file" accept="image/*" multiple hidden>
+
+<dialog id="scan" aria-labelledby="scan-h"><div class="dlg" id="scan-body"></div></dialog>
+<dialog id="detail" aria-labelledby="d-h"><div class="dlg" id="detail-body"></div></dialog>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+  // ---------- helpers ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+  const num = v => { if (v === null || v === undefined || v === "") return null; const n = parseFloat(String(v).replace(/[^0-9.\-]/g, "")); return Number.isFinite(n) ? n : null; };
+  const str = v => (v === null || v === undefined) ? "" : String(v).trim();
+  const fmtFull = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
+  const fmtRound = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+  const money = v => v == null ? "–" : (Math.abs(v) >= 1000 ? fmtRound : fmtFull).format(v).replace("CA", "");
+  const fmtDate = d => { if (!d) return "–"; const t = new Date(d.length === 10 ? d + "T12:00:00" : d); return t.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }); };
+  const shortDate = d => new Date(d + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+  const daysAgo = iso => iso ? Math.floor((Date.now() - Date.parse(iso)) / 864e5) : null;
+  const chunk = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
+  const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  const photoSrc = c => c.photo ? "/_blob/" + c.photo : (c.thumb || null);
+  const initials = c => (c.kind === "set" ? "SET" : (str(c.player).split(/\s+/).map(w => w[0]).join("").slice(0, 3) || "?")).toUpperCase();
+  const desc = c => [c.year, c.brand, c.set, c.number ? "#" + c.number : "", c.player, c.variant, c.serial ? "serial " + c.serial : "", c.rookie ? "RC" : ""].map(str).filter(Boolean).join(" ")
+    + " — " + (str(c.grade) || "Raw") + (c.condition ? " (" + str(c.condition) + ")" : "");
+  const isGraded = c => !!c.grade && !/^raw$/i.test(str(c.grade));
+  const lastChange = c => { const h = c.history || []; if (h.length < 2) return null; const a = h[h.length - 2].v, b = h[h.length - 1].v; return { abs: b - a, pct: a ? (b - a) / a : null }; };
+
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3200); }
+
+  // ---------- state ----------
+  const S = { db: null, assets: null, sample: null, downloads: null, imgMax: 0, claudeOff: false, canWrite: true,
+    loaded: false, dbErr: null, cards: [], settings: { usdcad: 1.37 }, q: "", sort: "value", filter: "all", busy: null, ctl: null };
+  try { const v = localStorage.getItem("hcv-view"); if (v) Object.assign(S, JSON.parse(v)); } catch {}
+  const saveView = () => { try { localStorage.setItem("hcv-view", JSON.stringify({ sort: S.sort, filter: S.filter })); } catch {} };
+
+  const use = n => (window.claude && typeof window.claude.use === "function") ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
+
+  function claudeError(e) {
+    switch (e && e.code) {
+      case "not_granted": case "sampling_disabled": case "not_declared": case "capability_disabled": case "capability_removed":
+        S.claudeOff = true; return "Claude isn't available on this page right now. You can still enter cards and values by hand.";
+      case "images_unavailable": S.imgMax = 0; return "This view can't send photos to Claude. Fill in the details by hand.";
+      case "image_rejected": return "Claude couldn't open one of these photos. Use a JPEG or PNG under 20 MB.";
+      case "rate_limited": return "You've hit a Claude usage limit. Wait a while, then try again.";
+      case "session_expired": return "Your Claude session expired. Reload the page and sign in again.";
+      case "invalid_json": case "empty_completion": return "Claude's answer didn't come back in a usable form. Try again.";
+      case "refused": return "Claude declined this request. Try a different photo or wording.";
+      case "prompt_too_large": return "That was too much text for one request. Paste fewer listings.";
+      default: return "Couldn't reach Claude. Check your connection and try again.";
+    }
+  }
+  function storeError(e) {
+    switch (e && e.code) {
+      case "quota_exceeded": case "quota_or_state": return "Storage for this collection is full. Delete some cards or photos, then try again.";
+      case "too_large": return "That photo is too large to store. Try a smaller one.";
+      case "invalid_argument": S.canWrite = false; return "You can view this collection but not change it.";
+      case "rate_limited": case "resource_exhausted": return "Too many saves at once. Wait a moment and try again.";
+      default: return "Couldn't save. Check your connection and try again.";
+    }
+  }
+
+  // ---------- images ----------
+  async function shrink(file, max = 1600, q = 0.85) {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      if (bmp.close) bmp.close();
+      return await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("encode")), "image/jpeg", q));
+    } catch { return file; }
+  }
+  async function dataURL(blob) {
+    const small = await shrink(blob, 360, 0.75);
+    return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(small); });
+  }
+
+  // ---------- prompts ----------
+  const ID_PROMPT = n => `You are an expert on hockey trading cards (O-Pee-Chee, Upper Deck, Young Guns, Parkhurst, Topps, Score, Pro Set, Pinnacle, SP Authentic, The Cup, and so on) and on the Canadian collector market.
+
+${n} photo${n > 1 ? "s are" : " is"} attached. They may show one card, the front and back of the same card, several cards on a table or binder page, a graded slab, or a complete set or lot.
+
+Today is ${today()}.
+
+For each distinct card (or each complete set/lot photographed as one item):
+1. Identify it as precisely as you can: player, season (like "2015-16"), manufacturer, set, card number, parallel/insert/variant, serial numbering such as "23/99" if stamped, rookie-card status, team.
+2. If it is in a graded slab, read the grade from the label (e.g. "PSA 9", "BGS 9.5"). Otherwise grade is "Raw"; describe visible condition briefly (corners, centering, surface).
+3. Estimate fair market value in Canadian dollars for that exact card in that condition, from recent completed sales you know of (eBay sold, COMC, 130point, Canadian shops). Common base cards from 1987-1995 overproduction are usually worth well under $1. Give a low-high range and your confidence.
+If the front and back of one card appear in different photos, return it once. If you can't read something, leave that field as "" instead of guessing, and lower identifyConfidence.
+
+Reply with only JSON in this shape (the values shown only illustrate types):
+{"items":[{"kind":"card","photo":1,"player":"","year":"","brand":"","set":"","number":"","variant":"","serial":"","rookie":false,"team":"","grade":"Raw","condition":"","qty":1,"value":0,"low":0,"high":0,"confidence":"low|medium|high","identifyConfidence":"low|medium|high","note":"One sentence on what drives the value."}]}
+"photo" is the 1-based number of the photo that best shows the item's front. For a set or lot use kind "set", put its name in "set", leave player empty, and value the whole lot. "value" is per copy.`;
+
+  const VALUE_PROMPT = items => `You are pricing hockey cards for a Canadian collector. Today is ${today()}.
+For each item, estimate the current fair market value per copy in Canadian dollars for the stated grade and condition, based on recent completed sales you know of. "prev" is the previous estimate and its date, for reference; change it when your knowledge of the market supports a different number and keep it when it doesn't.
+
+Items:
+${JSON.stringify(items)}
+
+Reply with only JSON: {"values":[{"id":"","value":0,"low":0,"high":0,"confidence":"low|medium|high","note":"short reason"}]}
+Include every id exactly once.`;
+
+  const COMPS_PROMPT = (c, text, rate) => `Below is text a collector copied from a sold-listings search (eBay sold items, 130point, or similar). Work out the fair market value in Canadian dollars, per copy, of this specific card:
+${desc(c)}
+
+Use only completed sales of the same card, same parallel, and same grade (or raw, if it is raw). Ignore lots, reprints, other grades, other parallels, and listings that did not sell. Convert USD to CAD at ${rate}. Weight recent sales more heavily. Today is ${today()}.
+
+Reply with only JSON: {"value":0,"low":0,"high":0,"used":[{"price_cad":0,"date":"","title":""}],"note":"one or two sentences"}
+If nothing matches, set value to null and say why in note.
+
+Pasted text:
+"""
+${text}
+"""`;
+
+  // ---------- boot ----------
+  async function boot() {
+    render();
+    const [db, assets, sample, downloads, user] = await Promise.all(["db", "assets", "sample", "downloads", "user"].map(use));
+    Object.assign(S, { db, assets, sample, downloads });
+    if (user) { try { const ok = await user.canEdit(); if (ok === false) S.canWrite = false; } catch {} }
+    if (sample) { try { const lim = await sample.limits(); S.imgMax = (lim && lim.images && lim.images.maxCount) || 0; } catch { S.imgMax = 0; } }
+    if (!db) { S.loaded = true; S.dbErr = "absent"; render(); return; }
+    db.collection("cards").onSnapshot(snap => {
+      S.cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      S.loaded = true; render(); refreshDetail();
+    }, e => { S.dbErr = e.code || "unavailable"; S.loaded = true; render(); });
+    db.doc("meta/settings").onSnapshot(s => {
+      if (s.exists) { const d = s.data(); if (num(d.usdcad)) S.settings.usdcad = num(d.usdcad); }
+      const el = $("#usdcad"); if (document.activeElement !== el) el.value = S.settings.usdcad;
+    }, () => {});
+  }
+
+  // ---------- main render ----------
+  function filtered() {
+    const q = S.q.toLowerCase();
+    let list = S.cards.filter(c => {
+      if (S.filter === "rc" && !c.rookie) return false;
+      if (S.filter === "graded" && !isGraded(c)) return false;
+      if (S.filter === "numbered" && !str(c.serial)) return false;
+      if (S.filter === "set" && c.kind !== "set") return false;
+      if (!q) return true;
+      return [c.player, c.team, c.brand, c.set, c.year, c.variant, c.number, c.grade, c.serial].map(str).join(" ").toLowerCase().includes(q);
+    });
+    const v = c => (c.value || 0);
+    const by = {
+      value: (a, b) => v(b) * (b.qty || 1) - v(a) * (a.qty || 1),
+      added: (a, b) => str(b.addedAt).localeCompare(str(a.addedAt)),
+      player: (a, b) => str(a.player || a.set).localeCompare(str(b.player || b.set)),
+      year: (a, b) => str(b.year).localeCompare(str(a.year)) || v(b) - v(a),
+      gain: (a, b) => ((lastChange(b) || {}).abs ?? -Infinity) - ((lastChange(a) || {}).abs ?? -Infinity),
+    }[S.sort] || (() => 0);
+    return list.sort(by);
+  }
+
+  function render() {
+    const cards = S.cards;
+    const total = cards.reduce((s, c) => s + (c.value || 0) * (c.qty || 1), 0);
+    const count = cards.reduce((s, c) => s + (c.qty || 1), 0);
+    $("#total").innerHTML = esc(money(total)) + "<small>CAD</small>";
+    $("#s-count").textContent = count.toLocaleString("en-CA");
+    // change at last update: per-card difference between the two most recent estimates
+    let chg = 0, moved = 0;
+    for (const c of cards) { const lc = lastChange(c); if (lc) { chg += lc.abs * (c.qty || 1); moved++; } }
+    const sc = $("#s-change");
+    sc.textContent = moved ? (chg >= 0 ? "+" : "−") + money(Math.abs(chg)) : "–";
+    sc.className = "num " + (moved ? (chg > 0.005 ? "chg up" : chg < -0.005 ? "chg down" : "chg flat") : "");
+    sc.style.fontSize = "18px";
+    $("#s-change-l").textContent = moved ? `across ${moved} re-valued card${moved > 1 ? "s" : ""}` : "appears after your first update";
+    const top = cards.filter(c => c.value != null).sort((a, b) => b.value - a.value)[0];
+    $("#s-top").textContent = top ? (str(top.player) || str(top.set)) : "–";
+    const oldest = cards.filter(c => c.valuedAt).map(c => daysAgo(c.valuedAt)).sort((a, b) => b - a)[0];
+    $("#s-age").textContent = oldest == null ? "–" : oldest === 0 ? "today" : oldest + (oldest === 1 ? " day" : " days");
+    drawChart();
+
+    // buttons
+    const writable = !!S.db && S.canWrite && !S.dbErr;
+    $("#btn-add").disabled = !writable || !!S.busy;
+    $("#btn-revalue").disabled = !writable || !S.sample || S.claudeOff || !cards.length || !!S.busy;
+    $("#btn-export").hidden = !S.downloads || !cards.length;
+    $$(".chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === S.filter)));
+    $("#sort").value = S.sort;
+
+    // grid
+    const list = filtered();
+    $("#grid").innerHTML = list.map(tile).join("");
+    const empty = $("#empty");
+    empty.hidden = !!list.length;
+    if (!list.length) {
+      const steps = $("#empty-steps");
+      if (!S.loaded) { $("#empty-h").textContent = "Loading your binder…"; $("#empty-p").textContent = "Your cards appear here as sleeved tiles with their current value."; steps.hidden = false; }
+      else if (S.dbErr === "absent") { $("#empty-h").textContent = "Open this in Claude to keep a collection"; $("#empty-p").textContent = "Saving cards needs the page's storage, which only works when you open it from claude.ai or the Claude app while signed in."; steps.hidden = false; }
+      else if (S.dbErr) { $("#empty-h").textContent = "Couldn't load your cards"; $("#empty-p").textContent = "Reload the page to try again."; steps.hidden = true; }
+      else if (cards.length) { $("#empty-h").textContent = "No cards match"; $("#empty-p").textContent = "Clear the search or pick another filter."; steps.hidden = true; }
+      else { $("#empty-h").textContent = "Start your binder"; $("#empty-p").textContent = "No cards yet. Here's how it works:"; steps.hidden = false; }
+    }
+  }
+
+  function tile(c) {
+    const src = photoSrc(c);
+    const lc = lastChange(c);
+    const badges = [];
+    if (c.kind === "set") badges.push(`<span class="badge set">Set</span>`);
+    if (c.rookie) badges.push(`<span class="badge rc">RC</span>`);
+    if (isGraded(c)) badges.push(`<span class="badge slab">${esc(c.grade)}</span>`);
+    if (str(c.serial)) badges.push(`<span class="badge ser">${esc(/^\//.test(str(c.serial)) ? c.serial : (str(c.serial).includes("/") ? str(c.serial) : "/" + str(c.serial)))}</span>`);
+    if (str(c.variant)) badges.push(`<span class="badge">${esc(c.variant)}</span>`);
+    const line = [c.year, c.brand, c.set].map(str).filter(Boolean).join(" ") + (c.number ? " #" + str(c.number) : "");
+    const chg = lc && lc.pct != null ? `<span class="chg ${lc.abs > 0 ? "up" : lc.abs < 0 ? "down" : "flat"}">${lc.abs > 0 ? "▲" : lc.abs < 0 ? "▼" : "•"} ${Math.abs(lc.pct * 100).toFixed(lc.pct && Math.abs(lc.pct) < 0.1 ? 1 : 0)}%</span>` : "";
+    return `<button class="tile" type="button" data-id="${esc(c.id)}" aria-label="${esc((c.player || c.set || "Card") + ", " + money(c.value))}">
+      <div class="thumb">${(c.qty || 1) > 1 ? `<span class="qty">×${c.qty}</span>` : ""}${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : `<span class="ph">${esc(initials(c))}</span>`}</div>
+      <div class="who">${esc(c.player || c.set || "Unidentified card")}</div>
+      <div class="what">${esc(line)}</div>
+      ${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}
+      <div class="val">${c.value != null ? `<span class="money">${esc(money(c.value))}</span>` : `<span class="unpriced">No value yet</span>`}${chg}</div>
+    </button>`;
+  }
+
+  // ---------- chart ----------
+  function series() {
+    const dates = [...new Set(S.cards.flatMap(c => (c.history || []).map(h => h.d)))].sort();
+    return dates.map(d => ({ d, v: S.cards.reduce((s, c) => { let v = null; for (const h of (c.history || [])) if (h.d <= d) v = h.v; return s + (v || 0) * (c.qty || 1); }, 0) }));
+  }
+  function drawChart() {
+    const box = $("#chart");
+    const pts = series();
+    if (pts.length < 2) {
+      box.innerHTML = `<div class="chart-empty">${pts.length ? "One estimate so far. The line starts after your next update." : "Your collection's value will chart here once cards are added and re-valued."}</div>`;
+      return;
+    }
+    const W = Math.max(280, Math.round(box.clientWidth || 640)), H = 170, L = 58, R = 10, T = 14, B = 24;
+    const vs = pts.map(p => p.v);
+    let lo = Math.min(...vs), hi = Math.max(...vs);
+    if (hi === lo) { hi = hi * 1.1 + 1; lo = Math.max(0, lo * 0.9 - 1); }
+    const pad = (hi - lo) * 0.12; hi += pad; lo = Math.max(0, lo - pad);
+    const t0 = Date.parse(pts[0].d), t1 = Date.parse(pts[pts.length - 1].d);
+    const x = d => L + (W - L - R) * (t1 === t0 ? 1 : (Date.parse(d) - t0) / (t1 - t0));
+    const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+    const line = pts.map((p, i) => (i ? "L" : "M") + x(p.d).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ");
+    const ticks = [lo, (lo + hi) / 2, hi];
+    const last = pts[pts.length - 1];
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Collection value from ${esc(fmtDate(pts[0].d))} to ${esc(fmtDate(last.d))}, now ${esc(money(last.v))}">
+      <g class="grid">${ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/>`).join("")}</g>
+      <g class="axis">${ticks.map(t => `<text x="${L - 6}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end">${esc(compact(t))}</text>`).join("")}
+        <text x="${L}" y="${H - 6}">${esc(shortDate(pts[0].d))}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${esc(shortDate(last.d))}</text></g>
+      <path class="ln" d="${line}"/>
+      <line class="cross" id="cross" y1="${T}" y2="${H - B}" x1="0" x2="0" visibility="hidden"/>
+      <circle class="end" cx="${x(last.d).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="4.5"/>
+      <rect class="hit" x="${L}" y="0" width="${W - L - R}" height="${H}"/>
+    </svg><div class="tip" id="tip" hidden></div>`;
+    const svg = $("svg", box), hit = $(".hit", box), cross = $("#cross", box), tip = $("#tip", box);
+    const move = ev => {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width * W;
+      let best = pts[0]; for (const p of pts) if (Math.abs(x(p.d) - px) < Math.abs(x(best.d) - px)) best = p;
+      cross.setAttribute("x1", x(best.d)); cross.setAttribute("x2", x(best.d)); cross.setAttribute("visibility", "visible");
+      tip.hidden = false; tip.textContent = fmtDate(best.d) + " · " + money(best.v);
+      const left = x(best.d) / W * r.width; tip.style.left = Math.min(Math.max(left, 70), r.width - 70) + "px";
+    };
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); tip.hidden = true; });
+  }
+  const compact = v => v >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : v >= 1e5 ? "$" + Math.round(v / 1e3) + "k" : v >= 1e4 ? "$" + (v / 1e3).toFixed(1) + "k" : "$" + Math.round(v).toLocaleString("en-CA");
+  let rsz; window.addEventListener("resize", () => { clearTimeout(rsz); rsz = setTimeout(drawChart, 150); });
+
+  // ---------- notice bar ----------
+  function notice(html, opts = {}) {
+    const n = $("#notice");
+    if (!html) { n.hidden = true; n.innerHTML = ""; return; }
+    n.hidden = false; n.className = "notice" + (opts.err ? " err" : "");
+    n.innerHTML = (opts.spin ? `<span class="spin" aria-hidden="true"></span>` : "") + `<span class="msg">${html}</span>`
+      + (opts.stop ? `<button class="btn small" type="button" id="n-stop">Stop</button>` : "")
+      + (opts.dismiss ? `<button class="btn small" type="button" id="n-ok">Dismiss</button>` : "");
+    if (opts.stop) $("#n-stop").onclick = () => S.ctl && S.ctl.abort();
+    if (opts.dismiss) $("#n-ok").onclick = () => notice(null);
+  }
+
+  // ---------- writing values ----------
+  async function writeValue(card, v) {
+    const d = today();
+    const hist = (card.history || []).filter(h => h.d !== d).concat([{ d, v: v.value }]).sort((a, b) => a.d.localeCompare(b.d)).slice(-120);
+    await S.db.doc("cards/" + card.id).update(clean({
+      value: v.value, low: v.low ?? null, high: v.high ?? null, confidence: v.confidence || null,
+      note: v.note || "", source: v.source, valuedAt: new Date().toISOString(), history: hist,
+    }));
+  }
+
+  async function revalue(targets, label) {
+    if (!S.sample || S.busy) return;
+    S.busy = "revalue"; S.ctl = new AbortController(); render();
+    let done = 0, failed = null;
+    const batches = chunk(targets, 15);
+    try {
+      for (const batch of batches) {
+        notice(`Asking Claude for current values… <b>${done}</b> of <b>${targets.length}</b> done. This can take a minute.`, { spin: true, stop: true });
+        const items = batch.map(c => ({ id: c.id, card: desc(c), kind: c.kind || "card", prev: c.value != null ? { cad: c.value, on: str(c.valuedAt).slice(0, 10) } : null }));
+        const res = await S.sample.json(VALUE_PROMPT(items), { modelTier: "complex", signal: S.ctl.signal, cache: false });
+        const vals = Array.isArray(res && res.values) ? res.values : Array.isArray(res) ? res : [];
+        for (const r of vals) {
+          const c = batch.find(b => b.id === str(r.id)); const value = num(r.value);
+          if (!c || value == null || value < 0) continue;
+          await writeValue(c, { value, low: num(r.low), high: num(r.high), confidence: str(r.confidence), note: str(r.note), source: "claude" });
+          done++;
+        }
+      }
+    } catch (e) { failed = e; }
+    S.busy = null; S.ctl = null; render();
+    if (failed && failed.code === "cancelled") notice(`Stopped. Updated ${done} of ${targets.length} card${targets.length > 1 ? "s" : ""}.`, { dismiss: true });
+    else if (failed) notice(esc(failed.code ? claudeError(failed) : storeError(failed)) + (done ? ` Updated ${done} before that.` : ""), { err: true, dismiss: true });
+    else { notice(null); toast(`${label || "Values"} updated: ${done} card${done === 1 ? "" : "s"}`); }
+    return !failed;
+  }
+
+  $("#btn-revalue").onclick = () => {
+    const cutoff = Date.now() - 30 * 864e5;
+    const targets = S.cards.filter(c => !((c.source === "manual" || c.source === "comps") && c.valuedAt && Date.parse(c.valuedAt) > cutoff));
+    const skipped = S.cards.length - targets.length;
+    if (!targets.length) { notice("Every card has a value you set or priced from sales in the last 30 days, so there's nothing to re-estimate.", { dismiss: true }); return; }
+    revalue(targets).then(ok => { if (ok && skipped) notice(`Skipped ${skipped} card${skipped > 1 ? "s" : ""} you priced yourself in the last 30 days.`, { dismiss: true }); });
+  };
+
+  // ---------- scan flow ----------
+  let SCAN = null;
+  const scanDlg = $("#scan");
+  $("#btn-add").onclick = () => { const f = $("#file"); f.value = ""; f.click(); };
+  $("#file").onchange = e => startScan([...e.target.files]);
+
+  const FIELDS = [
+    ["player", "Player"], ["year", "Season"], ["brand", "Brand"], ["set", "Set"], ["number", "Card #"],
+    ["variant", "Parallel / insert"], ["serial", "Serial #"], ["team", "Team"], ["grade", "Grade"], ["condition", "Condition", "wide"],
+  ];
+
+  function normItem(it, photoIdx) {
+    const value = num(it.value);
+    return {
+      keep: true, photoIdx, kind: it.kind === "set" ? "set" : "card",
+      player: str(it.player), year: str(it.year), brand: str(it.brand), set: str(it.set), number: str(it.number).replace(/^#/, ""),
+      variant: str(it.variant), serial: str(it.serial), rookie: !!it.rookie, team: str(it.team), grade: str(it.grade) || "Raw",
+      condition: str(it.condition), qty: Math.max(1, parseInt(it.qty) || 1),
+      value, origValue: value, low: num(it.low), high: num(it.high), confidence: str(it.confidence), idConf: str(it.identifyConfidence), note: str(it.note),
+    };
+  }
+  const blankItem = photoIdx => normItem({}, photoIdx);
+
+  async function startScan(files) {
+    files = files.filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.name));
+    if (!files.length) return;
+    const photos = [];
+    for (const f of files) { const blob = await shrink(f); photos.push({ blob, url: URL.createObjectURL(blob) }); }
+    SCAN = { photos, items: [], state: "reading", msg: "" };
+    if (!scanDlg.open) scanDlg.showModal();
+    const canRead = S.sample && S.imgMax > 0 && !S.claudeOff;
+    if (!canRead) {
+      SCAN.state = "review"; SCAN.items = [blankItem(0)];
+      SCAN.msg = "Claude can't read photos in this view, so fill in the details by hand.";
+      renderScan(); return;
+    }
+    S.ctl = new AbortController(); S.busy = "scan"; render();
+    const groups = chunk(photos.map((_, i) => i), Math.min(S.imgMax, 6));
+    try {
+      for (const idxs of groups) {
+        SCAN.msg = groups.length > 1 ? `Reading photos ${idxs[0] + 1}–${idxs[idxs.length - 1] + 1} of ${photos.length}…` : `Reading ${photos.length > 1 ? "your photos" : "your photo"}…`;
+        renderScan();
+        const res = await S.sample.json(ID_PROMPT(idxs.length), { images: idxs.map(i => photos[i].blob), modelTier: "complex", signal: S.ctl.signal });
+        const items = Array.isArray(res && res.items) ? res.items : Array.isArray(res) ? res : [];
+        for (const it of items) { const pi = idxs[(parseInt(it.photo) || 1) - 1]; SCAN.items.push(normItem(it, pi ?? idxs[0])); }
+      }
+      SCAN.msg = SCAN.items.length ? "" : "Claude couldn't find a card in these photos. Try a closer, well-lit shot, or fill in the details by hand.";
+      if (!SCAN.items.length) SCAN.items = [blankItem(0)];
+    } catch (e) {
+      if (e && e.code === "cancelled") { S.busy = null; S.ctl = null; closeScan(); render(); return; }
+      SCAN.msg = claudeError(e);
+      if (!SCAN.items.length) SCAN.items = [blankItem(0)];
+    }
+    S.busy = null; S.ctl = null; SCAN.state = "review"; render(); renderScan();
+  }
+
+  function itemHTML(it, i) {
+    const p = it.photoIdx != null && SCAN.photos[it.photoIdx];
+    const f = (k, label, cls) => `<label class="f ${cls || ""}"><span>${label}</span><input id="r${i}-${k}" data-k="${k}" value="${esc(it[k])}"></label>`;
+    const note = [it.note, it.confidence ? `Value confidence: <span class="conf ${esc(it.confidence)}">${esc(it.confidence)}</span>` : "",
+      it.idConf && it.idConf !== "high" ? `Identification confidence: <span class="conf ${esc(it.idConf)}">${esc(it.idConf)}</span>. Double-check the details.` : "",
+      it.low != null && it.high != null ? `Range ${esc(money(it.low))}–${esc(money(it.high))}.` : ""].filter(Boolean);
+    return `<div class="item ${it.keep ? "" : "off"}" data-i="${i}">
+      ${p ? `<img src="${esc(p.url)}" alt="">` : `<div class="noimg"></div>`}
+      <div class="fields">
+        ${FIELDS.map(([k, l, c]) => f(k, l, c)).join("")}
+        <label class="f"><span>Qty</span><input id="r${i}-qty" data-k="qty" type="number" min="1" step="1" value="${esc(it.qty)}"></label>
+        <label class="f"><span>Value each (CAD)</span><input id="r${i}-value" data-k="value" inputmode="decimal" value="${it.value == null ? "" : esc(it.value)}"></label>
+        <label class="f check"><input id="r${i}-rookie" data-k="rookie" type="checkbox" ${it.rookie ? "checked" : ""}><span>Rookie card</span></label>
+        <label class="f check"><input id="r${i}-set" data-k="kindset" type="checkbox" ${it.kind === "set" ? "checked" : ""}><span>Whole set / lot</span></label>
+        <label class="f check"><input id="r${i}-keep" data-k="keep" type="checkbox" ${it.keep ? "checked" : ""}><span>Save this one</span></label>
+      </div>
+      ${note.length ? `<p class="item-note">${note.join(" ")}</p>` : ""}
+    </div>`;
+  }
+
+  function readScanForm() {
+    if (!SCAN) return;
+    $$(".item", scanDlg).forEach(row => {
+      const it = SCAN.items[+row.dataset.i]; if (!it) return;
+      $$("[data-k]", row).forEach(inp => {
+        const k = inp.dataset.k;
+        if (k === "rookie" || k === "keep") it[k] = inp.checked;
+        else if (k === "kindset") it.kind = inp.checked ? "set" : "card";
+        else if (k === "qty") it.qty = Math.max(1, parseInt(inp.value) || 1);
+        else if (k === "value") it.value = num(inp.value);
+        else it[k] = str(inp.value);
+      });
+    });
+  }
+
+  function renderScan() {
+    if (!SCAN) return;
+    const body = $("#scan-body");
+    const head = `<div class="dlg-head"><div><h2 id="scan-h">${SCAN.state === "reading" ? "Reading cards" : SCAN.state === "saving" ? "Saving" : "Check and save"}</h2>
+      <p>${SCAN.state === "review" ? "Fix anything Claude misread. Untick anything you don't want to keep." : SCAN.photos.length + " photo" + (SCAN.photos.length > 1 ? "s" : "")}</p></div>
+      <button class="x" type="button" id="scan-x" aria-label="Close">×</button></div>`;
+    const photos = `<div class="photos">${SCAN.photos.map(p => `<img src="${esc(p.url)}" alt="">`).join("")}</div>`;
+    if (SCAN.state === "reading" || SCAN.state === "saving") {
+      body.innerHTML = head + photos + `<div class="notice" role="status"><span class="spin" aria-hidden="true"></span><span class="msg">${esc(SCAN.state === "saving" ? "Saving to your collection…" : SCAN.msg)}${SCAN.state === "reading" ? " Claude looks closely at each card, so this usually takes 20–60 seconds." : ""}</span>${SCAN.state === "reading" ? `<button class="btn small" id="scan-stop" type="button">Stop</button>` : ""}</div>`;
+    } else {
+      body.innerHTML = head + photos + (SCAN.msg ? `<div class="notice err" role="status"><span class="msg">${esc(SCAN.msg)}</span></div>` : "")
+        + `<div class="items">${SCAN.items.map(itemHTML).join("")}</div>
+        <div class="dlg-foot"><span class="grow"><button class="link" type="button" id="scan-more">Add another card by hand</button></span>
+        <button class="btn" type="button" id="scan-cancel">Cancel</button><button class="btn primary" type="button" id="scan-save">Save ${SCAN.items.filter(i => i.keep).length || ""} to collection</button></div>`;
+      $("#scan-cancel").onclick = closeScan;
+      $("#scan-save").onclick = saveScan;
+      $("#scan-more").onclick = () => { readScanForm(); SCAN.items.push(blankItem(SCAN.photos.length ? 0 : null)); renderScan(); };
+      $$(".item [data-k=keep]", body).forEach(cb => cb.onchange = () => { readScanForm(); renderScan(); });
+    }
+    $("#scan-x").onclick = () => { if (S.ctl && SCAN.state === "reading") S.ctl.abort(); else if (SCAN.state !== "saving") closeScan(); };
+    const stop = $("#scan-stop"); if (stop) stop.onclick = () => S.ctl && S.ctl.abort();
+  }
+
+  function closeScan() {
+    if (SCAN) SCAN.photos.forEach(p => URL.revokeObjectURL(p.url));
+    SCAN = null; if (scanDlg.open) scanDlg.close();
+  }
+  scanDlg.addEventListener("cancel", e => { if (SCAN && SCAN.state !== "review") { e.preventDefault(); if (SCAN.state === "reading" && S.ctl) S.ctl.abort(); } else { e.preventDefault(); closeScan(); } });
+
+  async function saveScan() {
+    readScanForm();
+    const keep = SCAN.items.filter(i => i.keep && (i.player || i.set));
+    if (!keep.length) { SCAN.msg = "Add at least a player or set name, or untick everything and cancel."; renderScan(); return; }
+    SCAN.state = "saving"; renderScan();
+    const uploaded = {};
+    let saved = 0;
+    try {
+      for (const it of keep) {
+        let photo = null, thumb = null;
+        const p = it.photoIdx != null ? SCAN.photos[it.photoIdx] : null;
+        if (p) {
+          const type = /^image\/(jpeg|png|webp|gif)$/.test(p.blob.type) ? p.blob.type : null;
+          if (S.assets && type) {
+            if (!(it.photoIdx in uploaded)) uploaded[it.photoIdx] = (await S.assets.upload(p.blob, { type })).id;
+            photo = uploaded[it.photoIdx];
+          } else if (type) thumb = await dataURL(p.blob);
+        }
+        const now = new Date().toISOString();
+        const hasVal = it.value != null;
+        const source = !hasVal ? null : (it.origValue != null && it.value === it.origValue) ? "claude" : "manual";
+        await S.db.collection("cards").doc().set(clean({
+          kind: it.kind, player: it.player, year: it.year, brand: it.brand, set: it.set, number: it.number, variant: it.variant,
+          serial: it.serial, rookie: it.rookie, team: it.team, grade: it.grade, condition: it.condition, qty: it.qty,
+          photo, thumb, addedAt: now,
+          value: hasVal ? it.value : null, low: source === "claude" ? it.low : null, high: source === "claude" ? it.high : null,
+          confidence: source === "claude" ? it.confidence : null, note: source === "claude" ? it.note : "",
+          source, valuedAt: hasVal ? now : null, history: hasVal ? [{ d: today(), v: it.value }] : [],
+        }));
+        saved++;
+        it.keep = false; // so a retry after a failure doesn't duplicate
+      }
+      closeScan(); toast(`Added ${saved} card${saved === 1 ? "" : "s"} to your collection`);
+    } catch (e) {
+      SCAN.state = "review"; SCAN.msg = storeError(e) + (saved ? ` ${saved} saved before that; they're unticked here.` : ""); renderScan();
+    }
+  }
+
+  // ---------- detail ----------
+  const detDlg = $("#detail");
+  let openId = null;
+  $("#grid").addEventListener("click", e => { const t = e.target.closest(".tile"); if (t) openDetail(t.dataset.id); });
+
+  function openDetail(id) {
+    openId = id; renderDetail(); if (!detDlg.open) detDlg.showModal();
+  }
+  detDlg.addEventListener("close", () => { openId = null; });
+  function refreshDetail() {
+    if (!openId) return;
+    const c = S.cards.find(x => x.id === openId);
+    if (!c) { detDlg.close(); return; }
+    const vb = $("#d-value"); if (vb) vb.innerHTML = valueBox(c);
+  }
+
+  function valueBox(c) {
+    const src = { claude: "Claude's estimate", manual: "Set by you", comps: "Priced from sold listings" }[c.source] || "";
+    const hist = (c.history || []).slice().reverse();
+    return `<div class="eyebrow">Value each</div>
+      <div class="now">${esc(money(c.value))}${(c.qty || 1) > 1 ? ` <span class="range">× ${c.qty} = ${esc(money((c.value || 0) * c.qty))}</span>` : ""}</div>
+      ${c.low != null && c.high != null ? `<div class="range">Range ${esc(money(c.low))}–${esc(money(c.high))}${c.confidence ? ` · <span class="conf ${esc(c.confidence)}">${esc(c.confidence)} confidence</span>` : ""}</div>` : ""}
+      ${c.note ? `<div class="range">${esc(c.note)}</div>` : ""}
+      <div class="range">${esc(src)}${c.valuedAt ? " · " + esc(fmtDate(c.valuedAt)) : ""}</div>
+      ${hist.length ? `<div class="hist"><table><thead><tr><th>Date</th><th>Value</th><th>Change</th></tr></thead><tbody>${hist.map((h, i) => {
+        const prev = hist[i + 1]; const d = prev ? h.v - prev.v : null;
+        return `<tr><td>${esc(fmtDate(h.d))}</td><td class="num">${esc(money(h.v))}</td><td class="num chg ${d == null ? "flat" : d > 0 ? "up" : d < 0 ? "down" : "flat"}">${d == null ? "–" : (d >= 0 ? "+" : "−") + esc(money(Math.abs(d)))}</td></tr>`;
+      }).join("")}</tbody></table></div>` : ""}`;
+  }
+
+  function renderDetail() {
+    const c = S.cards.find(x => x.id === openId); if (!c) return;
+    const src = photoSrc(c);
+    const ro = !S.canWrite || !S.db;
+    const ai = S.sample && !S.claudeOff;
+    const field = (k, label, cls) => `<label class="f ${cls || ""}"><span>${label}</span><input id="d-${k}" data-k="${k}" value="${esc(c[k])}" ${ro ? "disabled" : ""}></label>`;
+    $("#detail-body").innerHTML = `
+      <div class="dlg-head"><div><h2 id="d-h">${esc(c.player || c.set || "Unidentified card")}</h2><p>${esc([c.year, c.brand, c.set].map(str).filter(Boolean).join(" ") + (c.number ? " #" + c.number : ""))}</p></div>
+        <button class="x" type="button" id="d-x" aria-label="Close">×</button></div>
+      <div class="detail">
+        <div class="sect" style="align-content:start">
+          ${src ? `<img class="big" src="${esc(src)}" alt="Photo of ${esc(c.player || c.set)}">` : `<div class="noimg big">No photo</div>`}
+          ${!ro && S.assets ? `<button class="btn small" type="button" id="d-photo">${src ? "Replace photo" : "Add photo"}</button><input type="file" id="d-file" accept="image/*" hidden>` : ""}
+        </div>
+        <div class="sect" style="min-width:0">
+          <div class="vbox" id="d-value">${valueBox(c)}</div>
+          ${ro ? "" : `
+          <div class="sect">
+            <h3>Update the value</h3>
+            <div class="row">
+              <input type="number" id="d-manual" min="0" step="0.01" placeholder="CAD each" aria-label="Value each in CAD">
+              <button class="btn small" type="button" id="d-set">Set value</button>
+              ${ai ? `<button class="btn small" type="button" id="d-reest">Ask Claude again</button>` : ""}
+            </div>
+            <span class="status" id="d-vstatus"></span>
+          </div>
+          ${ai ? `<div class="sect">
+            <h3>Price from sold listings</h3>
+            <p>Search eBay for this card, filter to <b>Sold items</b>, select the results text and paste it here. Claude picks out matching sales and converts USD at ${esc(S.settings.usdcad)}.</p>
+            <textarea class="paste" id="d-comps" placeholder="Paste sold listings here…"></textarea>
+            <div class="row"><button class="btn small primary" type="button" id="d-price">Price from these sales</button><span class="status" id="d-cstatus"></span></div>
+          </div>` : ""}`}
+          <div class="sect">
+            <h3>Details</h3>
+            <div class="fields">
+              ${FIELDS.map(([k, l, cl]) => field(k, l, cl)).join("")}
+              <label class="f"><span>Qty</span><input id="d-qty" data-k="qty" type="number" min="1" step="1" value="${esc(c.qty || 1)}" ${ro ? "disabled" : ""}></label>
+              <label class="f"><span>Paid (CAD)</span><input id="d-paid" data-k="paid" inputmode="decimal" value="${c.paid == null ? "" : esc(c.paid)}" ${ro ? "disabled" : ""}></label>
+              <label class="f check"><input id="d-rookie" data-k="rookie" type="checkbox" ${c.rookie ? "checked" : ""} ${ro ? "disabled" : ""}><span>Rookie card</span></label>
+              <label class="f check"><input id="d-kindset" data-k="kindset" type="checkbox" ${c.kind === "set" ? "checked" : ""} ${ro ? "disabled" : ""}><span>Whole set / lot</span></label>
+            </div>
+            ${c.paid != null && c.value != null ? `<p>${(c.value * (c.qty || 1)) - c.paid >= 0 ? "Up" : "Down"} <b class="num">${esc(money(Math.abs(c.value * (c.qty || 1) - c.paid)))}</b> on what you paid.</p>` : ""}
+          </div>
+          ${ro ? "" : `<div class="dlg-foot" id="d-foot">
+            <span class="grow"><button class="btn small danger" type="button" id="d-del">Delete card</button></span>
+            <span class="status" id="d-status"></span>
+            <button class="btn primary" type="button" id="d-save">Save details</button>
+          </div>`}
+        </div>
+      </div>`;
+    $("#d-x").onclick = () => detDlg.close();
+    if (ro) return;
+    $("#d-save").onclick = () => saveDetails(c);
+    $("#d-set").onclick = async () => {
+      const v = num($("#d-manual").value); const st = $("#d-vstatus");
+      if (v == null || v < 0) { st.className = "status err"; st.textContent = "Enter a value in dollars, like 12.50."; return; }
+      try { await writeValue(c, { value: v, source: "manual" }); st.className = "status"; st.textContent = "Saved."; $("#d-manual").value = ""; }
+      catch (e) { st.className = "status err"; st.textContent = storeError(e); }
+    };
+    const re = $("#d-reest"); if (re) re.onclick = async () => {
+      const st = $("#d-vstatus"); st.className = "status"; st.textContent = "Asking Claude…"; re.disabled = true;
+      const ok = await revalue([c], "Value"); re.disabled = false; st.textContent = ok ? "Updated." : "";
+    };
+    const pr = $("#d-price"); if (pr) pr.onclick = () => priceFromComps(c);
+    $("#d-del").onclick = () => {
+      $("#d-foot").innerHTML = `<div class="confirm" style="flex:1"><span class="grow">Delete this card and its value history? This can't be undone.</span>
+        <button class="btn small" type="button" id="d-keep">Keep it</button><button class="btn small danger solid" type="button" id="d-really">Delete</button></div>`;
+      $("#d-keep").onclick = renderDetail;
+      $("#d-really").onclick = () => deleteCard(c);
+    };
+    const pb = $("#d-photo"); if (pb) { pb.onclick = () => $("#d-file").click(); $("#d-file").onchange = e => replacePhoto(c, e.target.files[0]); }
+  }
+
+  async function saveDetails(c) {
+    const st = $("#d-status"); const upd = {};
+    $$("#detail-body .fields [data-k]").forEach(inp => {
+      const k = inp.dataset.k;
+      if (k === "rookie") upd.rookie = inp.checked;
+      else if (k === "kindset") upd.kind = inp.checked ? "set" : "card";
+      else if (k === "qty") upd.qty = Math.max(1, parseInt(inp.value) || 1);
+      else if (k === "paid") upd.paid = num(inp.value);
+      else upd[k] = str(inp.value);
+    });
+    try { await S.db.doc("cards/" + c.id).update(upd); st.className = "status"; st.textContent = "Saved."; toast("Details saved"); renderDetailHead(upd); }
+    catch (e) { st.className = "status err"; st.textContent = storeError(e); }
+  }
+  function renderDetailHead(u) { const h = $("#d-h"); if (h) h.textContent = u.player || u.set || "Unidentified card"; }
+
+  async function deleteCard(c) {
+    try {
+      await S.db.doc("cards/" + c.id).delete();
+      if (c.photo && S.assets && !S.cards.some(x => x.id !== c.id && x.photo === c.photo)) { try { await S.assets.delete(c.photo); } catch {} }
+      detDlg.close(); toast("Card deleted");
+    } catch (e) { const st = $("#d-status"); if (st) { st.className = "status err"; st.textContent = storeError(e); } }
+  }
+
+  async function replacePhoto(c, file) {
+    if (!file) return;
+    const st = $("#d-vstatus") || $("#d-status");
+    try {
+      const blob = await shrink(file);
+      const type = /^image\/(jpeg|png|webp|gif)$/.test(blob.type) ? blob.type : null;
+      if (!type) { st.className = "status err"; st.textContent = "Use a JPEG, PNG or WebP photo."; return; }
+      const old = c.photo;
+      const r = await S.assets.upload(blob, { type });
+      await S.db.doc("cards/" + c.id).update({ photo: r.id, thumb: null });
+      if (old && !S.cards.some(x => x.id !== c.id && x.photo === old)) { try { await S.assets.delete(old); } catch {} }
+      c.photo = r.id; renderDetail();
+    } catch (e) { st.className = "status err"; st.textContent = storeError(e); }
+  }
+
+  async function priceFromComps(c) {
+    const text = str($("#d-comps").value); const st = $("#d-cstatus"); const btn = $("#d-price");
+    if (text.length < 40) { st.className = "status err"; st.textContent = "Paste the sold listings first: titles, prices and dates."; return; }
+    btn.disabled = true; st.className = "status"; st.textContent = "Claude is reading the sales…";
+    try {
+      const r = await S.sample.json(COMPS_PROMPT(c, text.slice(0, 30000), S.settings.usdcad), { modelTier: "default", cache: false });
+      const v = num(r && r.value);
+      if (v == null) { st.className = "status err"; st.textContent = str(r && r.note) || "No matching sales found in that text."; }
+      else {
+        const used = Array.isArray(r.used) ? r.used.length : 0;
+        await writeValue(c, { value: v, low: num(r.low), high: num(r.high), confidence: used >= 5 ? "high" : used >= 2 ? "medium" : "low", note: str(r.note) + (used ? ` Based on ${used} sale${used > 1 ? "s" : ""}.` : ""), source: "comps" });
+        st.textContent = `Set to ${money(v)} from ${used} matching sale${used === 1 ? "" : "s"}.`; $("#d-comps").value = "";
+      }
+    } catch (e) { st.className = "status err"; st.textContent = e && e.code ? claudeError(e) : storeError(e); }
+    btn.disabled = false;
+  }
+
+  // ---------- controls ----------
+  $("#q").addEventListener("input", e => { S.q = e.target.value; render(); });
+  $("#sort").addEventListener("change", e => { S.sort = e.target.value; saveView(); render(); });
+  $$(".chip").forEach(b => b.addEventListener("click", () => { S.filter = b.dataset.f; saveView(); render(); }));
+  $("#usdcad").addEventListener("change", async e => {
+    const v = num(e.target.value); if (!v || v < 0.5 || v > 3) { e.target.value = S.settings.usdcad; return; }
+    S.settings.usdcad = v;
+    if (S.db && S.canWrite) { try { await S.db.doc("meta/settings").set({ usdcad: v }); toast("Exchange rate saved"); } catch (err) { toast(storeError(err)); } }
+  });
+
+  $("#btn-export").onclick = async () => {
+    const cols = ["player", "year", "brand", "set", "number", "variant", "serial", "rookie", "team", "grade", "condition", "qty", "value", "low", "high", "source", "valuedAt", "paid", "kind"];
+    const cell = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const rows = [cols.map(c => c === "value" ? "value_cad_each" : c).join(",")].concat(filtered().map(c => cols.map(k => cell(c[k])).join(",")));
+    try { await S.downloads.save({ filename: `hockey-cards-${today()}.csv`, data: rows.join("\n") }); }
+    catch (e) { if (!e || e.code !== "declined") toast("Couldn't export the file. Try again."); }
+  };
+
+  boot();
+})();
+</script>

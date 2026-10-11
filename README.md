@@ -102,6 +102,11 @@ skills/food-macros/
   written to the documented schema, but the sandbox it was built in blocks
   `api.nal.usda.gov`. Run it once with a real key before relying on it.
 
+## `apps/hockey-card-vault`
+
+A separate tool: a Claude artifact that identifies hockey cards from photos and tracks the
+collection's value in CAD over time. See [its README](apps/hockey-card-vault/README.md).
+
 ## Related
 
 Pairs with the `calorie-deficit-tracker` skill, which handles the burn side. This one
